@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全国高等学校列表</title>
+<script src="./marked.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif; background: #f5f6fa; color: #333; min-height: 100vh; }
+.container { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
+.header { text-align: center; padding: 30px 0 20px; }
+.header h1 { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+.search-bar { margin: 16px 0; display: flex; gap: 8px; }
+.search-bar input { flex: 1; padding: 10px 16px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px; outline: none; transition: border-color .2s; }
+.search-bar input:focus { border-color: #4a6cf7; }
+.search-bar .count { display: flex; align-items: center; padding: 0 12px; font-size: 13px; color: #888; white-space: nowrap; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 20px 0; flex-wrap: wrap; }
+.pagination button { min-width: 36px; height: 36px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; color: #555; transition: all .15s; padding: 0 8px; }
+.pagination button:hover:not(:disabled):not(.active) { background: #f0f2ff; border-color: #4a6cf7; color: #4a6cf7; }
+.pagination button.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.pagination .ellipsis { padding: 0 4px; color: #999; }
+.pagination .jump { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
+.pagination .jump input { width: 52px; height: 36px; border: 1px solid #ddd; border-radius: 6px; text-align: center; font-size: 14px; outline: none; padding: 0 4px; }
+.pagination .jump input:focus { border-color: #4a6cf7; }
+.pagination .jump button { min-width: 40px; height: 36px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; color: #555; padding: 0 10px; transition: all .15s; }
+.pagination .jump button:hover { background: #f0f2ff; border-color: #4a6cf7; color: #4a6cf7; }
+.school-list { display: flex; flex-direction: column; gap: 10px; }
+.school-card { background: #fff; border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06); display: flex; align-items: center; justify-content: space-between; gap: 12px; transition: box-shadow .2s; }
+.school-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+.school-name { font-size: 16px; font-weight: 600; color: #1a1a2e; min-width: 0; flex-shrink: 0; }
+.school-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.school-actions .btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 6px; font-size: 13px; text-decoration: none; cursor: pointer; border: none; transition: all .15s; white-space: nowrap; }
+.btn-gaokao { background: #e8f4fd; color: #1a73e8; }
+.btn-gaokao:hover { background: #d0eafc; }
+.btn-review { background: #fef3e2; color: #d48a1a; }
+.btn-review:hover { background: #fce8c8; }
+.btn-review.loading { opacity: .6; pointer-events: none; }
+.hidden { display: none !important; }
+.btn-ranking { background: #e8f5e9; color: #2e7d32; }
+.btn-ranking:hover { background: #c8e6c9; }
+.btn-ranking.hidden { display: none; }
+.review-links { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; padding-top: 6px; border-top: 1px dashed #eee; }
+.review-links a { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-decoration: none; cursor: pointer; }
+.review-link-current { background: #fff8e1; color: #f57f17; }
+.review-link-current:hover { background: #ffecb3; }
+.review-link-archived { background: #f3e5f5; color: #7b1fa2; }
+.review-link-archived:hover { background: #e1bee7; }
+.review-none { font-size: 12px; color: #aaa; padding: 4px 0; }
+.school-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; }
+.empty-state { text-align: center; padding: 60px 20px; color: #999; font-size: 15px; }
+.loading-state { text-align: center; padding: 80px 20px; color: #999; font-size: 16px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-content { background: #fff; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 8px 40px rgba(0,0,0,.2); animation: modalIn .2s ease; }
+@keyframes modalIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid #eee; }
+.modal-header h2 { font-size: 18px; font-weight: 600; }
+.modal-close { width: 32px; height: 32px; border: none; background: #f0f0f0; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; color: #666; transition: background .15s; }
+.modal-close:hover { background: #e0e0e0; }
+.modal-body { padding: 24px; overflow-y: auto; line-height: 1.7; font-size: 15px; }
+.modal-body h1, .modal-body h2, .modal-body h3, .modal-body h4 { margin: 1em 0 .5em; color: #1a1a2e; }
+.modal-body h1 { font-size: 22px; }
+.modal-body h2 { font-size: 19px; }
+.modal-body h3 { font-size: 17px; }
+.modal-body p { margin: .6em 0; }
+.modal-body ul, .modal-body ol { padding-left: 1.5em; margin: .6em 0; }
+.modal-body li { margin: .3em 0; }
+.modal-body blockquote { border-left: 4px solid #4a6cf7; padding: 8px 16px; margin: 12px 0; background: #f8f9ff; border-radius: 0 6px 6px 0; color: #555; }
+.modal-body blockquote p { margin: 0; }
+.modal-body details { margin: 8px 0; }
+.modal-body summary { cursor: pointer; font-weight: 600; color: #4a6cf7; padding: 4px 0; }
+.modal-body hr { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+.modal-loading { text-align: center; padding: 40px; color: #999; }
+.notice { margin-top: 32px; padding: 20px 24px; background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); line-height: 1.7; font-size: 14px; color: #555; }
+.notice h1, .notice h2, .notice h3 { margin: 1em 0 .5em; color: #1a1a2e; }
+.notice h1 { font-size: 20px; } .notice h2 { font-size: 17px; } .notice h3 { font-size: 15px; }
+.notice p { margin: .5em 0; }
+.notice ul, .notice ol { padding-left: 1.5em; margin: .5em 0; }
+.notice blockquote { border-left: 4px solid #4a6cf7; padding: 8px 16px; margin: 12px 0; background: #f8f9ff; border-radius: 0 6px 6px 0; }
+.modal-error { text-align: center; padding: 40px; color: #d32f2f; }
+@media (max-width: 640px) {
+  .school-card { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .school-body { width: 100%; align-items: flex-start; }
+  .school-actions { width: 100%; }
+  .header h1 { font-size: 20px; }
+  .modal-content { max-height: 85vh; }
+  .modal-body { padding: 16px; font-size: 14px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>全国高等学校列表</h1>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="搜索学校名称..." autocomplete="off">
+    <span class="count" id="resultCount"></span>
+  </div>
+  <div class="pagination" id="paginationTop"></div>
+  <div class="school-list" id="schoolList"></div>
+  <div class="pagination" id="paginationBottom"></div>
+  <div class="notice" id="notice"></div>
+</div>
+<div id="modalContainer"></div>
+<script>
+const PAGE_SIZE = 50;
+let allSchools = [];
+let filtered = [];
+let currentPage = 1;
+const reviewCache = new Map();
+
+const searchInput = document.getElementById('searchInput');
+const schoolList = document.getElementById('schoolList');
+const paginationTop = document.getElementById('paginationTop');
+const paginationBottom = document.getElementById('paginationBottom');
+const resultCount = document.getElementById('resultCount');
+const modalContainer = document.getElementById('modalContainer');
+
+function render() {
+  const keyword = searchInput.value.trim();
+  const q = keyword.toLowerCase();
+  filtered = allSchools.filter(s => s.name.toLowerCase().includes(q));
+  const pages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
+  if (currentPage > pages) currentPage = pages;
+  renderPagination(paginationTop, pages);
+  renderPagination(paginationBottom, pages);
+  renderList();
+}
+
+function renderPagination(container, pages) {
+  if (pages <= 1) { container.innerHTML = ''; return; }
+  let html = '';
+  html += `<button data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>&lt;</button>`;
+  const range = [];
+  if (pages <= 7) {
+    for (let i = 1; i <= pages; i++) range.push(i);
+  } else {
+    range.push(1);
+    if (currentPage > 3) range.push('...');
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(pages - 1, currentPage + 1); i++) range.push(i);
+    if (currentPage < pages - 2) range.push('...');
+    range.push(pages);
+  }
+  for (const p of range) {
+    if (p === '...') { html += '<span class="ellipsis">…</span>'; continue; }
+    html += `<button data-page="${p}" class="${p === currentPage ? 'active' : ''}">${p}</button>`;
+  }
+  html += `<button data-page="${currentPage + 1}" ${currentPage >= pages ? 'disabled' : ''}>&gt;</button>`;
+  html += `<div class="jump"><input type="text" id="jumpPage" placeholder="页码" maxlength="4"><button id="jumpBtn">跳转</button></div>`;
+  container.innerHTML = html;
+  const jumpInput = container.querySelector('#jumpPage');
+  const jumpBtn = container.querySelector('#jumpBtn');
+  jumpInput.addEventListener('keydown', e => { if (e.key === 'Enter') jumpBtn.click(); });
+  jumpBtn.addEventListener('click', () => {
+    const p = parseInt(jumpInput.value);
+    if (p >= 1 && p <= pages) { currentPage = p; render(); scrollToTop(); }
+    jumpInput.value = '';
+  });
+}
+
+function renderList() {
+  if (!allSchools.length) {
+    schoolList.innerHTML = '<div class="loading-state">正在加载数据...</div>';
+    return;
+  }
+  if (!filtered.length) {
+    schoolList.innerHTML = '<div class="empty-state">未找到匹配的学校</div>';
+    resultCount.textContent = '0 所';
+    return;
+  }
+  resultCount.textContent = filtered.length + ' 所';
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = filtered.slice(start, start + PAGE_SIZE);
+  let html = '<div class="school-list">';
+  for (const s of pageItems) {
+    const id = s.schId;
+    const name = s.name;
+    const pinyin = s.pinyin;
+    const en = s.en_name;
+    const gaokaoUrl = `https://gaokao.chsi.com.cn/sch/schoolInfoMain--schId-${id}.dhtml`;
+    const rankClass = en ? '' : ' hidden';
+    html += `<div class="school-card">
+      <span class="school-name">${name}</span>
+      <div class="school-body">
+        <div class="school-actions">
+          <a class="btn btn-gaokao" href="${gaokaoUrl}" target="_blank" rel="noopener">阳光高考</a>
+          <button class="btn btn-review" data-pinyin="${pinyin}">学生评价</button>
+          <a class="btn btn-ranking${rankClass}" href="https://www.shanghairanking.cn/institution/${en}" target="_blank" rel="noopener">软科排名</a>
+        </div>
+        <div class="review-links" id="review-${pinyin}"></div>
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+  schoolList.innerHTML = html;
+}
+
+async function checkReviews(pinyin, btn) {
+  const container = document.getElementById('review-' + pinyin);
+  if (reviewCache.has(pinyin)) {
+    container.innerHTML = reviewCache.get(pinyin);
+    return;
+  }
+  btn.classList.add('loading');
+  btn.textContent = '检测中...';
+  const labels = ['评价', '已归档评价'];
+  const paths = [
+    `./comment/universities/${pinyin}.md`,
+    `./comment/archived/universities/${pinyin}.md`
+  ];
+  const cls = ['review-link-current', 'review-link-archived'];
+  const results = [];
+  try {
+    const responses = await Promise.all(paths.map(p => fetch(p, { method: 'HEAD' })));
+    for (let i = 0; i < responses.length; i++) {
+      if (responses[i].ok) {
+        results.push(`<a class="${cls[i]}" data-mdpath="${paths[i]}" data-label="${labels[i]}">${labels[i]}</a>`);
+      }
+    }
+  } catch {}
+  btn.classList.remove('loading');
+  btn.textContent = '学生评价';
+  let html;
+  if (results.length) {
+    html = results.join('');
+  } else {
+    html = '<span class="review-none">暂无评价</span>';
+  }
+  container.innerHTML = html;
+  reviewCache.set(pinyin, html);
+}
+
+function showModal(title, mdPath) {
+  modalContainer.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>${title}</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body"><div class="modal-loading">加载中...</div></div>
+      </div>
+    </div>`;
+  const body = modalContainer.querySelector('.modal-body');
+  fetch(mdPath)
+    .then(r => {
+      if (!r.ok) throw new Error('Not found');
+      return r.text();
+    })
+    .then(md => {
+      body.innerHTML = marked.parse(md);
+    })
+    .catch(() => {
+      body.innerHTML = '<div class="modal-error">加载失败</div>';
+    });
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+searchInput.addEventListener('input', () => {
+  currentPage = 1;
+  render();
+  scrollToTop();
+});
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn-review');
+  if (!btn) return;
+  e.preventDefault();
+  const pinyin = btn.dataset.pinyin;
+  checkReviews(pinyin, btn);
+});
+
+document.addEventListener('click', e => {
+  const link = e.target.closest('.review-links a');
+  if (!link) return;
+  e.preventDefault();
+  const label = link.dataset.label;
+  const path = link.dataset.mdpath;
+  const card = link.closest('.school-card');
+  const name = card ? card.querySelector('.school-name').textContent : '';
+  showModal(`${name} - ${label}`, path);
+});
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.pagination button:not(#jumpBtn)');
+  if (!btn || btn.disabled) return;
+  const page = parseInt(btn.dataset.page);
+  if (isNaN(page)) return;
+  currentPage = page;
+  render();
+  scrollToTop();
+});
+
+document.addEventListener('click', e => {
+  if (e.target.closest('.modal-close') || (e.target.classList.contains('modal-overlay') && !e.target.closest('.modal-content'))) {
+    modalContainer.innerHTML = '';
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && modalContainer.innerHTML) {
+    modalContainer.innerHTML = '';
+  }
+});
+
+fetch('./schools.json')
+  .then(r => r.json())
+  .then(data => {
+    allSchools = data;
+    render();
+  })
+  .catch(() => {
+    schoolList.innerHTML = '<div class="empty-state">加载学校数据失败，请确认 schools.json 文件存在</div>';
+  });
+
+fetch('./notice.md').then(r => { if (r.ok) return r.text(); throw ''; }).then(md => {
+  document.getElementById('notice').innerHTML = marked.parse(md);
+}).catch(() => {});
+</script>
+</body>
+</html>
